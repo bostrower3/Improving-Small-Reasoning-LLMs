@@ -1,0 +1,16 @@
+Eval:
+  dataset: gsm8k
+  model: Qwen/Qwen2.5-1.5B-Instruct
+
+  run_name: test_run_Qwen_Small
+
+  wandb:
+    project: reasoning-eval
+    entity: bostrower3-georgia-institute-of-technology
+    api_key_file: wandb_api.txt
+    log_every: 1
+
+  experiment:
+    batch_size: 16
+    max_new_tokens: 128
+    output_file: results.json
