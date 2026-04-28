@@ -435,7 +435,19 @@ class LatentTokenModel(nn.Module):
 
         # Batch-size-1 assumption for this version.
         if input_ids.size(0) != 1:
-            raise ValueError("generate_cached currently assumes batch_size == 1.")
+            raise ValueError("generate_cached currently only supports batch_size == 1.")
+        if self.config.append_mode:
+            raise ValueError("generate_cached supports prepend mode only (append_mode=False).")
+        if self.config.insertion_strategy not in {"start", "periodic"}:
+            raise ValueError(
+                f"generate_cached supports insertion_strategy in {{'start','periodic'}} only, "
+                f"got {self.config.insertion_strategy!r}."
+            )
+        if self.config.insertion_strategy == "periodic" and int(self.config.insertion_period) <= 0:
+            raise ValueError("insertion_period must be > 0 for periodic strategy.")
+        if comma_token_id is not None:
+            raise ValueError("comma_token_id is unsupported in generate_cached for start/periodic-only scope.")
+
 
         out = input_ids.clone()
 
@@ -450,10 +462,13 @@ class LatentTokenModel(nn.Module):
             input_ids=out,
             attention_mask=attention_mask,
         )
+        if prefill.get("past_key_values", None) is None:
+            raise RuntimeError("Prefill did not return past_key_values while use_cache=True.")
         past = prefill["past_key_values"]                    # cache from full prompt
         next_logits = prefill["next_logits"]                 # [1, V]
         verbal_lens = prefill["verbal_lens"].clone()         # [1]
         augmented_lens = prefill["augmented_lens"].clone()   # [1]
+        full_aug_mask = prefill["augmented_attention_mask"]
 
         # First token prediction comes from prompt prefill logits
         next_token = self._sample_next_token(next_logits, temperature=temperature)  # [1,1]
@@ -462,7 +477,7 @@ class LatentTokenModel(nn.Module):
             # Append predicted verbal token
             out = torch.cat([out, next_token.to(device)], dim=1)
             attention_mask = torch.cat(
-                [attention_mask, torch.ones((1, 1), dtype=torch.long, device=device)],
+                [attention_mask, torch.ones((1, 1), dtype=torch.long, device=device)], #"sequence grew by one token, and that new position is valid"
                 dim=1,
             )
 
@@ -475,7 +490,7 @@ class LatentTokenModel(nn.Module):
             verbal_lens = verbal_lens + 1
 
             # 2) Build incremental augmented chunk for the token just appended
-            # token_ids shape must be [B], here [1]
+            # token_ids shape must be [BatchSize] (for now BatchSize=1)
             chunk_lists = self._build_incremental_augmented_chunk(
                 token_ids=next_token.view(-1),                    # [1]
                 verbal_indices=just_appended_verbal_index,        # [1]
@@ -489,7 +504,7 @@ class LatentTokenModel(nn.Module):
                 verbal_mask_list=chunk_lists["verbal_mask_list"],
                 device=device,
             )
-
+            full_aug_mask = torch.cat([full_aug_mask, chunk_t["attention_mask"]], dim=1)  # [1, past+chunk]
             # Update augmented length tracker
             augmented_lens = augmented_lens + chunk_t["attention_mask"].sum(dim=1).long()
 
@@ -497,7 +512,7 @@ class LatentTokenModel(nn.Module):
             chunk_embeds = self._build_inputs_embeds(chunk_t["augmented_ids"])
             outputs = self.base_model(
                 inputs_embeds=chunk_embeds,
-                attention_mask=chunk_t["attention_mask"],  # local chunk mask(note that some HF decoder implementations expect attention mask length to cover past + current tokens, not just current chunk)
+                attention_mask=full_aug_mask,  #attention mask covering full KV span, not just the chunk
                 position_ids=chunk_t["position_ids"],
                 past_key_values=past,
                 use_cache=True,
@@ -707,8 +722,8 @@ class LatentTokenModel(nn.Module):
         augmented = self._augment_batch(
             input_ids=input_ids,
             attention_mask=attention_mask,
-            labels=None,
-            loss_mask=None,
+            labels=None, #recall that this function is used during inference, not training, so no labels or loss calculation needed.
+            loss_mask=None, #recall that this function is used during inference, not training, so no labels or loss calculation needed.
             comma_token_id=None if self.config.insertion_strategy != "comma" else None,
             # For your current scope (start/periodic), comma_token_id is unused.
         )
@@ -723,7 +738,7 @@ class LatentTokenModel(nn.Module):
             use_cache=True,
         )
 
-        next_logits = self._select_next_logit_from_chunk(
+        next_logits = self._select_next_logit_from_chunk( 
             logits=outputs.logits,
             verbal_mask=augmented["verbal_mask"],
         )
