@@ -1,0 +1,37 @@
+Train:
+  #dataset: ./datasets/compression_dataset #gsm8k
+  dataset: compression_dataset
+  data_path: datasets/compression_dataset
+  model: deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B #Qwen/Qwen2.5-1.5B-Instruct
+  run_name: deepseek_gsm8k_reasoning_eff #qwen15b_gsm8k_reasoning_eff
+
+  wandb:
+    project: reasoning-train
+    entity: bostrower3-georgia-institute-of-technology
+    api_key_file: wandb_api.txt
+    log_every: 1
+
+  experiment:
+    output_dir: ./reasoning_eff_ckpt
+    save_every: 200
+
+    batch_size: 2 #2
+    grad_accum_steps: 1 #4
+    epochs: 1
+
+    lr: 0.000005 #5e-6 #3.0e-6 #1.0e-5
+    clip_eps: 0.1 #0.2
+    max_prompt_length: 256 #512
+    max_new_tokens: 768 #1024 #128
+
+    num_rollouts: 4 #4
+    alpha: 0.2 #0.1
+    max_train_samples: 100
+
+    temperature: 1.0 #0.8
+    top_p: 0.95
+
+    use_lora: true
+    lora_r: 8
+    lora_alpha: 16
+    lora_dropout: 0.05
