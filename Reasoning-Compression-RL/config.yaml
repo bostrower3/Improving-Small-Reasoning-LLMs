@@ -1,0 +1,17 @@
+Eval:
+  dataset: gsm8k
+  model: deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B #./reasoning_eff_ckpt/final
+
+  run_name: test_run_DeepSeek_1.5B_baseline
+
+  wandb:
+    project: reasoning-eval
+    entity: bostrower3-georgia-institute-of-technology
+    api_key_file: wandb_api.txt
+    log_every: 1
+
+  experiment:
+    batch_size: 16
+    max_new_tokens: 2048 #8192 #1024 #128
+    output_file: results.json
+    log_length_metrics: true
