@@ -1,4 +1,4 @@
-# DL Class Final Project — Open-RS Reproduction
+## Open-RS Reproduction
 
 Paper: [Reinforcement Learning for Reasoning in Small LLMs: What Works and What Doesn't](https://arxiv.org/abs/2503.16219) (Open-RS).
 Upstream code: [knoveleng/open-rs](https://github.com/knoveleng/open-rs).
