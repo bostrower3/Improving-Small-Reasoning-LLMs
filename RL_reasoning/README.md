@@ -54,11 +54,6 @@ drive.mount('/content/drive')
 !grep output_dir /content/omscs/configs/grpo_colab_a100.yaml
 ```
 
-**Switch to A100** 
-```python
-!nvidia-smi | head -10
-```
-
 **baseline eval**
 
 ```python
