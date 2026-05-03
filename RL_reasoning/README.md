@@ -22,25 +22,6 @@ We then evaluate on **GSM8K** and **MATH-500** (the benchmarks in our class prop
 
 ### Setup + baseline + launch training 
 
-**mount Drive, copy project to fast local disk**
-
-```python
-from google.colab import drive
-drive.mount('/content/drive')
-
-# Tarball expected at /content/drive/MyDrive/OMSCS.tar.gz (re-tar on Cirro after edits)
-!rm -rf /content/omscs && mkdir -p /content/omscs
-!tar xzf /content/drive/MyDrive/OMSCS.tar.gz -C /content/omscs --strip-components=1
-!mkdir -p /content/drive/MyDrive/OMSCS_runs
-!ls /content/omscs
-```
-
-**install deps**
-
-```python
-!bash /content/omscs/scripts/setup_colab.sh
-```
-
 ```python
 !sed -i 's|attn_implementation: flash_attention_2|attn_implementation: sdpa|' \
     /content/omscs/configs/grpo_colab_a100.yaml
