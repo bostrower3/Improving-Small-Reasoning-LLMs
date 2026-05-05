@@ -197,7 +197,6 @@ def sample_batch_rollouts(model, tokenizer, accelerator, prompts, num_rollouts, 
     prompt_width = inputs["input_ids"].shape[1]
     gen_ids = outputs[:, prompt_width:]
 
-    # If pad_token_id == eos_token_id, this masks generated EOS too. That is okay for the PPO loss.
     gen_mask = (gen_ids != tokenizer.pad_token_id).long()
 
     prompt_ids = inputs["input_ids"].repeat_interleave(num_rollouts, dim=0)
@@ -216,33 +215,24 @@ def sample_batch_rollouts(model, tokenizer, accelerator, prompts, num_rollouts, 
 def get_generated_token_logprobs_batch(model, prompt_ids, prompt_mask, gen_ids, gen_mask):
     """
     Batched generated-token logprob extraction.
-
-    Important numerical fixes:
-    1. Compute log_softmax in fp32.
-    2. Do not gather pad/eos-masked generated token IDs directly.
-    3. Do not multiply -inf by 0; use masked_fill instead.
     """
     full_ids = torch.cat([prompt_ids, gen_ids], dim=1)
     full_mask = torch.cat([prompt_mask, gen_mask], dim=1)
 
     outputs = model(input_ids=full_ids, attention_mask=full_mask)
 
-    # fp32 log-softmax is much safer than fp16 here
     logits = outputs.logits[:, :-1, :].float()
     target_ids = full_ids[:, 1:].clone()
 
     prompt_width = prompt_ids.shape[1]
     gen_width = gen_ids.shape[1]
 
-    # Positions corresponding to generated tokens in token_logprobs
     gen_start = prompt_width - 1
     gen_end = gen_start + gen_width
 
-    # Make a full target mask aligned with target_ids/logits
     target_mask = full_mask[:, 1:].clone()
     gen_target_mask = target_mask[:, gen_start:gen_end]
 
-    # Avoid gathering invalid/padded token IDs at masked positions
     target_ids = target_ids.masked_fill(target_mask == 0, 0)
 
     log_probs = torch.log_softmax(logits, dim=-1)
@@ -250,8 +240,6 @@ def get_generated_token_logprobs_batch(model, prompt_ids, prompt_mask, gen_ids, 
 
     gen_logprobs = token_logprobs[:, gen_start:gen_end]
 
-    # Never do gen_logprobs * mask if gen_logprobs may contain -inf/nan.
-    # Replace inactive positions with 0 instead.
     gen_logprobs = gen_logprobs.masked_fill(gen_target_mask == 0, 0.0)
 
     if not torch.isfinite(gen_logprobs).all():
@@ -282,7 +270,6 @@ def ppo_loss_batched(model, rollout_batch, advantages, clip_eps):
         dtype=new_logprobs.dtype
     ).view(-1, 1)
 
-    # Safety: inactive tokens should not participate in ratio at all.
     new_logprobs = new_logprobs.masked_fill(mask == 0, 0.0)
     old_logprobs = old_logprobs.masked_fill(mask == 0, 0.0)
 
