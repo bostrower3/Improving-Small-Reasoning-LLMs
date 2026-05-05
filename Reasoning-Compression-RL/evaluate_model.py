@@ -161,7 +161,6 @@ def get_scores(ds, outputs, save_file_name=None):
         'avg_tokens': sum(tokens) / len(tokens)
     }
 
-    # Log final metrics to wandb
     if wandb.run:
         wandb.log({
             'final_accuracy': pass_at_1,
@@ -214,7 +213,6 @@ def evaluate_model(model_name):
     time_taken = end_time - start_time
     print(f"Generation time: {time_taken:.1f}s")
 
-    # Init wandb only after vLLM generation is complete
     init_wandb(time_taken)
 
     test_scores = get_scores(

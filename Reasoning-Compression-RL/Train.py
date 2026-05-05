@@ -51,7 +51,6 @@ def load_train_dataset(name, data_path=None):
         ds = load_from_disk(data_path)
         ds = ds.select(range(10))
 
-        # Filter out rows where extracted answer is None
         ds = ds.filter(lambda x: x["extracted"] is not None and x["extracted"] != "")
         print(f"Loaded {len(ds)} problems with parseable answers")
         return list(zip(ds["problem"], ds["extracted"]))
@@ -97,11 +96,10 @@ def extract_answer(text):
 
     # return None
 
-    # Match \boxed{...}
     match = re.search(r"\\boxed\{([^}]+)\}", text)
     if match:
         return match.group(1).strip()
-    # Fallback to original patterns
+
     match = re.search(r"final answer:\s*(-?\d+\.?\d*)", text, re.IGNORECASE)
     if match:
         return match.group(1)
@@ -116,7 +114,6 @@ def extract_gold(answer):
     #     return answer.split("####")[-1].strip()
     # return extract_answer(answer)
 
-    # For compression_dataset, answer is already extracted
     if "####" in answer:
         return answer.split("####")[-1].strip()
     return answer.strip()
@@ -180,7 +177,7 @@ def compute_rewards_for_prompt(responses, gold_answer, tokenizer, alpha=0.1, eps
 def rloo_advantages(rewards):
     """
     Leave-one-out baseline.
-    IMPORTANT: no advantage normalization.
+    NOTE: no advantage normalization.
     """
     K = len(rewards)
     adv = []
@@ -230,14 +227,14 @@ def get_generated_token_logprobs(model, input_ids, attention_mask, generated_ids
     )
 
     outputs = model(input_ids=full_ids, attention_mask=full_mask)
-    logits = outputs.logits[:, :-1, :]  # predict next token
+    logits = outputs.logits[:, :-1, :]
 
     target_ids = full_ids[:, 1:]
     log_probs = torch.log_softmax(logits, dim=-1)
     token_logprobs = log_probs.gather(-1, target_ids.unsqueeze(-1)).squeeze(-1)
 
     prompt_len = input_ids.shape[1]
-    gen_logprobs = token_logprobs[:, prompt_len - 1:]  # generated token positions
+    gen_logprobs = token_logprobs[:, prompt_len - 1:]
     return gen_logprobs
 
 
